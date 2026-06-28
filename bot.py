@@ -2,6 +2,23 @@ import os
 import telebot
 from telebot import types
 from yt_dlp import YoutubeDL
+from threading import Thread
+from flask import Flask
+
+# === НАСТРОЙКА ВЕБ-СЕРВЕРА ДЛЯ RENDER ===
+app = Flask('')
+
+@app.route('/')
+def home():
+    return "Бот успешно работает и охраняет канал Ismoil Lab!"
+
+def run():
+    app.run(host='0.0.0.0', port=10000)
+
+def keep_alive():
+    t = Thread(target=run)
+    t.start()
+# ========================================
 
 # Твой токен от BotFather
 TOKEN = os.environ.get('BOT_TOKEN')
@@ -104,8 +121,9 @@ def handle_all_callbacks(call):
                 'quiet': True
             }
         else:
+            # Оптимизированные настройки скачивания (лучший формат со звуком до выбранного качества)
             ydl_opts = {
-                'format': f'bestvideo[height<={quality}]+bestaudio/best[height<={quality}]/best',
+                'format': f'bestvideo[height<={quality}]+bestaudio/best[height<={quality}]/best[ext=mp4]/best',
                 'outtmpl': outtmpl,
                 'merge_output_format': 'mp4',
                 'quiet': True
@@ -131,9 +149,14 @@ def handle_all_callbacks(call):
 
         except Exception as e:
             print(f"Ошибка при скачивании: {e}")
-            bot.delete_message(chat_id, status_msg.message_id)
+            try:
+                bot.delete_message(chat_id, status_msg.message_id)
+            except:
+                pass
             bot.send_message(chat_id, "❌ Не удалось скачать медиа. Возможно, формат недоступен.")
 
 if __name__ == '__main__':
+    # Сначала запускаем веб-сервер для Render, затем самого бота
+    keep_alive()
     print("Бот успешно запущен и охраняет канал Ismoil Lab!")
     bot.infinity_polling()
