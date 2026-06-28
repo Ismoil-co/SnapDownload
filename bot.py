@@ -5,12 +5,12 @@ from yt_dlp import YoutubeDL
 from threading import Thread
 from flask import Flask
 
-# === НАСТРОЙКА ВЕБ-СЕРВЕРА ДЛЯ RENDER ===
+# === ВЕБ-СЕРВЕР ДЛЯ ОБХОДА БЛОКИРОВКИ RENDER ===
 app = Flask('')
 
 @app.route('/')
 def home():
-    return "Бот успешно работает и охраняет канал Ismoil Lab!"
+    return "Бот работает и охраняет канал Ismoil Lab!"
 
 def run():
     app.run(host='0.0.0.0', port=10000)
@@ -18,7 +18,7 @@ def run():
 def keep_alive():
     t = Thread(target=run)
     t.start()
-# ========================================
+# ===============================================
 
 # Твой токен от BotFather
 TOKEN = os.environ.get('BOT_TOKEN')
@@ -121,9 +121,9 @@ def handle_all_callbacks(call):
                 'quiet': True
             }
         else:
-            # Оптимизированные настройки скачивания (лучший формат со звуком до выбранного качества)
+            # Улучшенный выбор формата: ищет видео+аудио, а если не может собрать — берет лучшее готовое mp4 до указанного качества
             ydl_opts = {
-                'format': f'bestvideo[height<={quality}]+bestaudio/best[height<={quality}]/best[ext=mp4]/best',
+                'format': f'bestvideo[height<={quality}]+bestaudio/best[height<={quality}]/best[ext=mp4][height<={quality}]/best',
                 'outtmpl': outtmpl,
                 'merge_output_format': 'mp4',
                 'quiet': True
@@ -137,7 +137,10 @@ def handle_all_callbacks(call):
                 if not os.path.exists(filename):
                     filename = os.path.splitext(filename)[0] + '.mp4'
 
-            bot.delete_message(chat_id, status_msg.message_id)
+            try:
+                bot.delete_message(chat_id, status_msg.message_id)
+            except:
+                pass
 
             with open(filename, 'rb') as file:
                 if quality == 'audio':
@@ -145,7 +148,8 @@ def handle_all_callbacks(call):
                 else:
                     bot.send_video(chat_id, file, caption=f"🎬 Видео ({quality}) успешно скачано!")
 
-            os.remove(filename)
+            if os.path.exists(filename):
+                os.remove(filename)
 
         except Exception as e:
             print(f"Ошибка при скачивании: {e}")
@@ -156,7 +160,6 @@ def handle_all_callbacks(call):
             bot.send_message(chat_id, "❌ Не удалось скачать медиа. Возможно, формат недоступен.")
 
 if __name__ == '__main__':
-    # Сначала запускаем веб-сервер для Render, затем самого бота
-    keep_alive()
+    keep_alive()  # Включаем Flask-сервер для удержания портов Render
     print("Бот успешно запущен и охраняет канал Ismoil Lab!")
     bot.infinity_polling()
