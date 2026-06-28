@@ -164,5 +164,4 @@ def handle_all_callbacks(call):
 
 if __name__ == '__main__':
     keep_alive()  # Включаем Flask-сервер для удержания портов Render
-    print("Бот успешно запущен и охраняет канал Ismoil Lab!")
-    bot.infinity_polling()
+    print("Бот успешно запущен и охраняет ка
