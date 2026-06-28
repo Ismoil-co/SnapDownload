@@ -13,7 +13,10 @@ def home():
     return "Бот работает и охраняет канал Ismoil Lab!"
 
 def run():
-    app.run(host='0.0.0.0', port=10000)
+    # Берем порт, который требует Render, или ставим 10000 по умолчанию
+    port = int(os.environ.get("PORT", 10000))
+    app.run(host='0.0.0.0', port=port)
+
 
 def keep_alive():
     t = Thread(target=run)
