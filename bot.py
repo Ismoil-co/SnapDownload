@@ -4,7 +4,7 @@ from telebot import types
 from yt_dlp import YoutubeDL
 
 # Твой токен от BotFather
-TOKEN = 'PASTE_YOUR_TOKEN_HERE'
+TOKEN = os.environ.get('BOT_TOKEN')
 bot = telebot.TeleBot(TOKEN)
 
 # Ссылка на твой канал Ismoil Lab
