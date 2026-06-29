@@ -22,6 +22,7 @@ def check_sub(chat_id):
 
 @bot.message_handler(commands=['start'])
 def send_welcome(message):
+    # ТУТ Я ПОЛНОСТЬЮ ИСПРАВИЛ ТЕКСТ НА ИНСТАГРАМ 👇
     welcome_text = (
         "👋 Привет! Я бот для скачивания медиа.\n\n"
         "🎥 Отправь мне ссылку на Instagram (Reels), TikTok или Pinterest, и я пришлю тебе видео!"
@@ -56,12 +57,12 @@ def handle_link(message):
         bot.reply_to(message, "⚠️ Пожалуйста, отправь корректную ссылку.")
         return
 
-    # Запрещаем ссылки на YouTube, так как он нам больше не нужен
+    # Запрещаем ссылки на YouTube
     if "youtube.com" in url or "youtu.be" in url:
         bot.reply_to(message, "⚠️ Извини, скачивание с YouTube отключено. Я поддерживаю только Instagram, TikTok и Pinterest!")
         return
 
-    # Если ссылка верная, сразу запускаем скачивание без лишних кнопок выбора качества
+    # Сразу запускаем скачивание
     download_instagram_or_other(message, url)
 
 
@@ -84,7 +85,7 @@ def download_instagram_or_other(message, video_url):
     status_msg = bot.send_message(chat_id, "⏳ Пожалуйста, подождите. Обрабатываю ссылку и скачиваю...")
 
     try:
-        # Используем стабильное API Cobalt для Instagram и других соцсетей
+        # Используем стабильное API Cobalt для Instagram
         api_url = "https://cobalt.api.v0.ratelimited.me/api/json"
         headers = {
             "Accept": "application/json",
@@ -92,13 +93,12 @@ def download_instagram_or_other(message, video_url):
         }
         data = {
             "url": video_url,
-            "videoQuality": "720", # Хорошее качество для Instagram Reels
+            "videoQuality": "720",
             "filenameStyle": "basic"
         }
 
         response = requests.post(api_url, json=data, headers=headers, timeout=20)
         
-        # Если первое зеркало занято, пробуем запасное
         if response.status_code != 200:
             api_url = "https://co.wuk.sh/api/json"
             response = requests.post(api_url, json=data, headers=headers, timeout=20)
@@ -107,7 +107,6 @@ def download_instagram_or_other(message, video_url):
         download_url = result.get("url")
         
         if download_url:
-            # Скачиваем файл во временную память сервера NomadHost
             file_response = requests.get(download_url, stream=True, timeout=60)
             filename = "instagram_video.mp4"
             
@@ -116,14 +115,11 @@ def download_instagram_or_other(message, video_url):
                     if chunk:
                         f.write(chunk)
 
-            # Удаляем текст "Скачиваю..."
             bot.delete_message(chat_id, status_msg.message_id)
 
-            # Отправляем готовое видео пользователю в Telegram
             with open(filename, 'rb') as video_file:
                 bot.send_video(chat_id, video_file, caption="🎬 Видео успешно скачано через Ismoil Lab!")
             
-            # Удаляем временный файл с хостинга
             os.remove(filename)
         else:
             raise Exception("Не удалось извлечь прямую ссылку на видео.")
@@ -139,7 +135,7 @@ def download_instagram_or_other(message, video_url):
             "❌ Не удалось скачать медиа по этой ссылке.\nУбедись, что аккаунт открытый (не приватный) и ссылка правильная."
         )
 
-# Запуск бота (в самом конце файла)
+# Запуск бота
 if __name__ == '__main__':
     print("Бот успешно запущен и охраняет канал Ismoil Lab!")
     bot.infinity_polling()
