@@ -3,8 +3,8 @@ import requests
 import telebot
 from telebot import types
 
-# Твой токен от BotFather
-TOKEN = '8869339637:AAGwxnRcgCWwKuk3w1DKrXtRvnl7uSzX3hQ'
+# ⚠️ ВСТАВЬ СЮДА НОВЫЙ ТОКЕН, КОТОРЫЙ ДАСТ BOTFATHER:
+TOKEN = 'ТВОЙ_НОВЫЙ_ТОКЕН_ОТ_BOTFATHER'
 bot = telebot.TeleBot(TOKEN)
 
 # Ссылка на твой канал Ismoil Lab
@@ -22,10 +22,9 @@ def check_sub(chat_id):
 
 @bot.message_handler(commands=['start'])
 def send_welcome(message):
-    # ТУТ Я ПОЛНОСТЬЮ ИСПРАВИЛ ТЕКСТ НА ИНСТАГРАМ 👇
     welcome_text = (
         "👋 Привет! Я бот для скачивания медиа.\n\n"
-        "🎥 Отправь мне ссылку на Instagram (Reels), TikTok или Pinterest, и я пришлю тебе видео!"
+        "🎥 Отправь мне ссылку на Instagram, TikTok или Pinterest, и я пришлю тебе видео!"
     )
     bot.reply_to(message, welcome_text)
 
@@ -57,20 +56,18 @@ def handle_link(message):
         bot.reply_to(message, "⚠️ Пожалуйста, отправь корректную ссылку.")
         return
 
-    # Запрещаем ссылки на YouTube
     if "youtube.com" in url or "youtu.be" in url:
-        bot.reply_to(message, "⚠️ Извини, скачивание с YouTube отключено. Я поддерживаю только Instagram, TikTok и Pinterest!")
+        bot.reply_to(message, "⚠️ Скачивание с YouTube отключено. Я поддерживаю только Instagram, TikTok и Pinterest!")
         return
 
-    # Сразу запускаем скачивание
-    download_instagram_or_other(message, url)
+    # Запускаем универсальное скачивание
+    download_media(message, url)
 
 
 # Обработчик кнопки подписки
 @bot.callback_query_handler(func=lambda call: True)
 def handle_all_callbacks(call):
     chat_id = call.message.chat.id
-    
     if call.data == "check_subscription_status":
         if check_sub(chat_id):
             bot.answer_callback_query(call.id, "🎉 Спасибо за подписку! Теперь отправь мне ссылку снова.", show_alert=True)
@@ -79,36 +76,35 @@ def handle_all_callbacks(call):
             bot.answer_callback_query(call.id, "❌ Вы всё ещё не подписались на Ismoil Lab!", show_alert=True)
 
 
-# Функция скачивания медиа (Instagram / TikTok / Pinterest)
-def download_instagram_or_other(message, video_url):
+# Универсальная функция скачивания медиа
+def download_media(message, video_url):
     chat_id = message.chat.id
-    status_msg = bot.send_message(chat_id, "⏳ Пожалуйста, подождите. Обрабатываю ссылку и скачиваю...")
+    status_msg = bot.send_message(chat_id, "⏳ Пожалуйста, подождите. Скачиваю видео...")
 
     try:
-        # Используем стабильное API Cobalt для Instagram
-        api_url = "https://cobalt.api.v0.ratelimited.me/api/json"
-        headers = {
-            "Accept": "application/json",
-            "Content-Type": "application/json"
-        }
-        data = {
-            "url": video_url,
-            "videoQuality": "720",
-            "filenameStyle": "basic"
-        }
+        # Для TikTok и Instagram используем разные стабильные эндпоинты
+        if "tiktok.com" in video_url:
+            api_url = "https://api.tikconvert.com/api/download"
+            payload = {"url": video_url}
+        else:
+            api_url = "https://cobalt.api.v0.ratelimited.me/api/json"
+            payload = {"url": video_url, "videoQuality": "720"}
 
-        response = requests.post(api_url, json=data, headers=headers, timeout=20)
+        headers = {"Accept": "application/json", "Content-Type": "application/json"}
         
+        response = requests.post(api_url, json=payload, headers=headers, timeout=20)
+        
+        # Резервный шлюз, если основной не ответил
         if response.status_code != 200:
             api_url = "https://co.wuk.sh/api/json"
-            response = requests.post(api_url, json=data, headers=headers, timeout=20)
+            response = requests.post(api_url, json={"url": video_url}, headers=headers, timeout=20)
 
         result = response.json()
         download_url = result.get("url")
         
         if download_url:
             file_response = requests.get(download_url, stream=True, timeout=60)
-            filename = "instagram_video.mp4"
+            filename = "downloaded_media.mp4"
             
             with open(filename, 'wb') as f:
                 for chunk in file_response.iter_content(chunk_size=1024*1024):
@@ -118,24 +114,23 @@ def download_instagram_or_other(message, video_url):
             bot.delete_message(chat_id, status_msg.message_id)
 
             with open(filename, 'rb') as video_file:
-                bot.send_video(chat_id, video_file, caption="🎬 Видео успешно скачано через Ismoil Lab!")
+                bot.send_video(chat_id, video_file, caption="🎬 Успешно скачано через Ismoil Lab!")
             
             os.remove(filename)
         else:
-            raise Exception("Не удалось извлечь прямую ссылку на видео.")
+            raise Exception("API не вернуло прямую ссылку")
 
     except Exception as e:
-        print(f"Ошибка API: {e}")
+        print(f"Ошибка скачивания: {e}")
         try:
             bot.delete_message(chat_id, status_msg.message_id)
         except:
             pass
         bot.send_message(
             chat_id, 
-            "❌ Не удалось скачать медиа по этой ссылке.\nУбедись, что аккаунт открытый (не приватный) и ссылка правильная."
+            "❌ Не удалось скачать медиа.\nУбедись, что видео не приватное и ссылка правильная."
         )
 
 # Запуск бота
 if __name__ == '__main__':
-    print("Бот успешно запущен и охраняет канал Ismoil Lab!")
     bot.infinity_polling()
