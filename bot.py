@@ -4,7 +4,8 @@ import telebot
 from telebot import types
 
 # ⚠️ ВСТАВЬ СЮДА НОВЫЙ ТОКЕН, КОТОРЫЙ ДАСТ BOTFATHER:
-TOKEN = 'ТВОЙ_НОВЫЙ_ТОКЕН_ОТ_BOTFATHER'
+TOKEN = '8869339637:AAETLPiSJbemj-BjKDlpwWgYmBInD-Pgfhw'
+
 bot = telebot.TeleBot(TOKEN)
 
 # Ссылка на твой канал Ismoil Lab
