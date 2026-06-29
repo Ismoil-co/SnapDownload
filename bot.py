@@ -1,84 +1,71 @@
-import telebot
+import os
 import requests
+import telebot
 from telebot import types
+from yt_dlp import YoutubeDL
+from threading import Thread
+from flask import Flask
 
-# Твой новый токен от BotFather
-TOKEN = '8869339637:AAETLPiSJbemj-BjKDlpwWgYmBInD-Pgfhw'
+app = Flask('')
+
+@app.route('/')
+def home():
+    return "Ismoil Lab Bot is Running!"
+
+def run():
+    port = int(os.environ.get("PORT", 10000))
+    app.run(host='0.0.0.0', port=port)
+
+def keep_alive():
+    t = Thread(target=run)
+    t.start()
+
+TOKEN = os.environ.get('BOT_TOKEN')
 bot = telebot.TeleBot(TOKEN)
-
-# Ссылка на твой канал Ismoil Lab
-CHANNEL_ID = '@ismoil_lab' 
+CHANNEL_ID = '@ismoil_lab'
+user_links = {}
 
 def check_sub(chat_id):
     try:
         user_status = bot.get_chat_member(CHANNEL_ID, chat_id).status
-        return user_status in ['creator', 'administrator', 'member']
+        if user_status in ['creator', 'administrator', 'member']:
+            return True
+        return False
     except Exception:
         return False
 
 @bot.message_handler(commands=['start'])
 def send_welcome(message):
     welcome_text = (
-        "👋 Привет! Я бот для скачивания медиа.\n\n"
-        "🎥 Отправь мне ссылку на Instagram, TikTok или Pinterest, и я пришлю тебе видео!"
+        "👋 Привет! Я бот для скачивания видео.\n\n"
+        "🎥 Отправь мне ссылку на Instagram, TikTok или Pinterest, и выбери нужное качество!"
     )
     bot.reply_to(message, welcome_text)
 
 @bot.message_handler(content_types=['text'])
 def handle_link(message):
     url = message.text.strip()
-    chat_id = message.chat.id
-    
-    if not check_sub(chat_id):
+    if not check_sub(message.chat.id):
         markup = types.InlineKeyboardMarkup(row_width=1)
         channel_url = f"https://t.me/{CHANNEL_ID.replace('@', '')}"
         btn_sub = types.InlineKeyboardButton("📢 Подписаться на Ismoil Lab", url=channel_url)
         btn_check = types.InlineKeyboardButton("✅ Я подписался", callback_data="check_subscription_status")
         markup.add(btn_sub, btn_check)
-        
         bot.reply_to(message, "❌ Доступ ограничен!\nЧтобы пользоваться ботом, пожалуйста, подпишитесь на наш официальный канал:", reply_markup=markup)
         return
-
     if not (url.startswith('http://') or url.startswith('https://')):
         bot.reply_to(message, "⚠️ Пожалуйста, отправь корректную ссылку.")
         return
-
-    if "youtube.com" in url or "youtu.be" in url:
-        bot.reply_to(message, "⚠️ Скачивание с YouTube отключено. Я поддерживаю только Instagram, TikTok и Pinterest!")
-        return
-
-    status_msg = bot.send_message(chat_id, "⏳ Пожалуйста, подождите. Генерирую видео...")
-
-    try:
-        # Используем ультра-быстрое API
-        if "tiktok.com" in url:
-            api_url = "https://api.tikconvert.com/api/download"
-            payload = {"url": url}
-        else:
-            api_url = "https://cobalt.api.v0.ratelimited.me/api/json"
-            payload = {"url": url, "videoQuality": "720"}
-
-        headers = {"Accept": "application/json", "Content-Type": "application/json"}
-        response = requests.post(api_url, json=payload, headers=headers, timeout=20)
-        
-        if response.status_code != 200:
-            api_url = "https://co.wuk.sh/api/json"
-            response = requests.post(api_url, json={"url": url}, headers=headers, timeout=20)
-
-        result = response.json()
-        download_url = result.get("url")
-        
-        if download_url:
-            # Отправляем видео напрямую ССЫЛКОЙ (Render это не заблокирует!)
-            bot.send_video(chat_id, download_url, caption="🎬 Успешно скачано через Ismoil Lab!")
-            bot.delete_message(chat_id, status_msg.message_id)
-        else:
-            raise Exception("API не вернуло ссылку")
-
-    except Exception as e:
-        print(f"Ошибка: {e}")
-        bot.delete_message(chat_id, status_msg.message_id)
-        bot.send_message(chat_id, "❌ Не удалось обработать ссылку. Убедись, что профиль открыт.")
+    user_links[message.chat.id] = url
+    markup = types.InlineKeyboardMarkup(row_width=2)
+    btn_360 = types.InlineKeyboardButton("🎬 360p", callback_data="quality_360")
+    btn_480 = types.InlineKeyboardButton("🎬 480p", callback_data="quality_480")
+    btn_720 = types.InlineKeyboardButton("🎬 720p", callback_data="quality_720")
+    btn_1080 = types.InlineKeyboardButton("🎬 1080p", callback_data="quality_1080")
+    btn_audio = types.InlineKeyboardButton("🎵 Audio", callback_data="quality_audio")
+    markup.add(btn_360, btn_480, btn_720, btn_1080)
+    markup.add(btn_audio)
+    bot.reply_to(message, "Выбери формат для скачивания:", reply_markup=markup)
 
 @bot.callback_query_handler(func=lambda call: True)
 def handle_all_callbacks(call):
@@ -89,6 +76,79 @@ def handle_all_callbacks(call):
             bot.delete_message(chat_id, call.message.message_id)
         else:
             bot.answer_callback_query(call.id, "❌ Вы всё ещё не подписались на Ismoil Lab!", show_alert=True)
+        return
+    if call.data.startswith('quality_'):
+        if not check_sub(chat_id):
+            bot.answer_callback_query(call.id, "❌ Вы не подписаны на канал!", show_alert=True)
+            return
+        if chat_id not in user_links:
+            bot.send_message(chat_id, "⚠️ Ссылка потерялась. Пожалуйста, отправьте её заново.")
+            return
+        
+        url = user_links[chat_id]
+        quality = call.data.split('_')[1]
+        bot.answer_callback_query(call.id, "Запрос принят...")
+        status_msg = bot.send_message(chat_id, "⏳ Скачиваю медиа...")
+
+        # Если ссылка из Instagram, качаем через быстрый Cobalt API в обход блокировок хостинга
+        if "instagram.com" in url:
+            try:
+                api_url = "https://api.cobalt.tools/api/json"
+                headers = {"Accept": "application/json", "Content-Type": "application/json"}
+                data = {"url": url, "vQuality": quality if quality != 'audio' else '720', "isAudioOnly": True if quality == 'audio' else False}
+                
+                response = requests.post(api_url, headers=headers, json=data, timeout=15)
+                res_data = response.json()
+                
+                if "url" in res_data:
+                    video_url = res_data["url"]
+                    file_data = requests.get(video_url, stream=True).content
+                    
+                    filename = "audio.mp3" if quality == 'audio' else "instagram_video.mp4"
+                    with open(filename, 'wb') as f:
+                        f.write(file_data)
+                        
+                    try: bot.delete_message(chat_id, status_msg.message_id)
+                    except: pass
+                    
+                    with open(filename, 'rb') as file:
+                        if quality == 'audio':
+                            bot.send_audio(chat_id, file, caption="🎵 Аудио из Instagram успешно скачано!")
+                        else:
+                            bot.send_video(chat_id, file, caption=f"🎬 Видео из Instagram успешно скачано!")
+                    os.remove(filename)
+                    return
+            except Exception as e:
+                print(f"Cobalt Instagram Error: {e}")
+
+        # Для остальных сайтов (TikTok, Pinterest) используем стандартный yt-dlp
+        outtmpl = os.path.join(os.getcwd(), '%(id)s.%(ext)s')
+        if quality == 'audio':
+            ydl_opts = {'format': 'bestaudio/best', 'outtmpl': outtmpl, 'quiet': True}
+        else:
+            ydl_opts = {'format': f'best[ext=mp4][height<={quality}]/best[ext=mp4]/best', 'outtmpl': outtmpl, 'quiet': True}
+            
+        try:
+            with YoutubeDL(ydl_opts) as ydl:
+                info = ydl.extract_info(url, download=True)
+                filename = ydl.prepare_filename(info)
+                if not os.path.exists(filename):
+                    filename = os.path.splitext(filename)[0] + '.mp4'
+            try: bot.delete_message(chat_id, status_msg.message_id)
+            except: pass
+            with open(filename, 'rb') as file:
+                if quality == 'audio':
+                    bot.send_audio(chat_id, file, caption="🎵 Аудио успешно скачано через Ismoil Lab!")
+                else:
+                    bot.send_video(chat_id, file, caption=f"🎬 Видео успешно скачано!")
+            if os.path.exists(filename): os.remove(filename)
+        except Exception as e:
+            print(f"Ошибка: {e}")
+            try: bot.delete_message(chat_id, status_msg.message_id)
+            except: pass
+            bot.send_message(chat_id, "❌ Не удалось скачать медиа. Проверьте правильность ссылки.")
 
 if __name__ == '__main__':
+    keep_alive()
+    print("Бот успешно запущен!")
     bot.infinity_polling()
