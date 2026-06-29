@@ -123,11 +123,12 @@ def handle_all_callbacks(call):
             }
         else:
             ydl_opts = {
-                'format': f'bestvideo[height<={quality}]+bestaudio/best[height<={quality}]/best[ext=mp4][height<={quality}]/best',
-                'outtmpl': outtmpl,
-                'merge_output_format': 'mp4',
-                'quiet': True
-            }
+    'format': f'best[ext=mp4][height<={quality}]/best[ext=mp4]/best',
+    'outtmpl': outtmpl, 
+    'quiet': True
+}
+ 
+    
 
         try:
             with YoutubeDL(ydl_opts) as ydl:
