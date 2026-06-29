@@ -1,4 +1,5 @@
 import os
+import requests
 import telebot
 from telebot import types
 from yt_dlp import YoutubeDL
@@ -83,21 +84,51 @@ def handle_all_callbacks(call):
         if chat_id not in user_links:
             bot.send_message(chat_id, "⚠️ Ссылка потерялась. Пожалуйста, отправьте её заново.")
             return
+        
         url = user_links[chat_id]
         quality = call.data.split('_')[1]
-        bot.answer_callback_query(call.id, "Запрос принят. Начинаю скачивание...")
-        status_msg = bot.send_message(chat_id, "⏳ Пожалуйста, подождите. Скачиваю медиа...")
+        bot.answer_callback_query(call.id, "Запрос принят...")
+        status_msg = bot.send_message(chat_id, "⏳ Скачиваю медиа без блокировок YouTube...")
+
+        # Если это YouTube, используем сторонний быстрый API в обход ограничений Render
+        if "youtube.com" in url or "youtu.be" in url:
+            try:
+                # Получаем чистую прямую ссылку на видеофайл mp4 через костыль-сервис
+                api_url = f"https://api.cobalt.tools/api/json"
+                headers = {"Accept": "application/json", "Content-Type": "application/json"}
+                data = {"url": url, "vQuality": quality if quality != 'audio' else '720', "isAudioOnly": True if quality == 'audio' else False}
+                
+                response = requests.post(api_url, headers=headers, json=data, timeout=15)
+                res_data = response.json()
+                
+                if "url" in res_data:
+                    video_url = res_data["url"]
+                    file_data = requests.get(video_url, stream=True).content
+                    
+                    filename = "audio.mp3" if quality == 'audio' else "video.mp4"
+                    with open(filename, 'wb') as f:
+                        f.write(file_data)
+                        
+                    try: bot.delete_message(chat_id, status_msg.message_id)
+                    except: pass
+                    
+                    with open(filename, 'rb') as file:
+                        if quality == 'audio':
+                            bot.send_audio(chat_id, file, caption="🎵 Аудио успешно скачано!")
+                        else:
+                            bot.send_video(chat_id, file, caption=f"🎬 Видео успешно скачано!")
+                    os.remove(filename)
+                    return
+            except Exception as e:
+                print(f"Cobalt API Error: {e}")
+
+        # Для остальных сайтов (TikTok, Pinterest) оставляем классический рабочий yt-dlp
         outtmpl = os.path.join(os.getcwd(), '%(id)s.%(ext)s')
-        
-        # Здесь мы заставляем скачивать ТОЛЬКО готовые mp4 файлы, которые сервер БЕСПЛАТНО и легко может обработать
         if quality == 'audio':
             ydl_opts = {'format': 'bestaudio/best', 'outtmpl': outtmpl, 'quiet': True}
         else:
-            ydl_opts = {
-                'format': f'best[ext=mp4][height<={quality}]/best[ext=mp4]/best',
-                'outtmpl': outtmpl, 
-                'quiet': True
-            }
+            ydl_opts = {'format': f'best[ext=mp4][height<={quality}]/best[ext=mp4]/best', 'outtmpl': outtmpl, 'quiet': True}
+            
         try:
             with YoutubeDL(ydl_opts) as ydl:
                 info = ydl.extract_info(url, download=True)
@@ -116,9 +147,9 @@ def handle_all_callbacks(call):
             print(f"Ошибка: {e}")
             try: bot.delete_message(chat_id, status_msg.message_id)
             except: pass
-            bot.send_message(chat_id, "❌ Не удалось скачать медиа. Возможно, формат недоступен.")
+            bot.send_message(chat_id, "❌ Ошибка скачивания. Защита YouTube заблокировала бесплатный сервер.")
 
 if __name__ == '__main__':
     keep_alive()
-    print("Бот успешно запущен и охраняет канал Ismoil Lab!")
+    print("Бот успешно запущен!")
     bot.infinity_polling()
