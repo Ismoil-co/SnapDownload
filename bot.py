@@ -2,26 +2,6 @@ import os
 import telebot
 from telebot import types
 from yt_dlp import YoutubeDL
-from threading import Thread
-from flask import Flask
-
-# === ВЕБ-СЕРВЕР ДЛЯ ОБХОДА БЛОКИРОВКИ RENDER ===
-app = Flask('')
-
-@app.route('/')
-def home():
-    return "Бот работает и охраняет канал Ismoil Lab!"
-
-def run():
-    # Берем порт, который требует Render, или ставим 10000 по умолчанию
-    port = int(os.environ.get("PORT", 10000))
-    app.run(host='0.0.0.0', port=port)
-
-
-def keep_alive():
-    t = Thread(target=run)
-    t.start()
-# ===============================================
 
 # Твой токен от BotFather
 TOKEN = os.environ.get('BOT_TOKEN')
@@ -124,7 +104,7 @@ def handle_all_callbacks(call):
                 'quiet': True
             }
         else:
-            # Улучшенный выбор формата: ищет видео+аудио, а если не может собрать — берет лучшее готовое mp4 до указанного качества
+            # Умный выбор формата: скачивает готовый файл mp4, чтобы не требовать склейки через ffmpeg
             ydl_opts = {
                 'format': f'bestvideo[height<={quality}]+bestaudio/best[height<={quality}]/best[ext=mp4][height<={quality}]/best',
                 'outtmpl': outtmpl,
@@ -163,5 +143,5 @@ def handle_all_callbacks(call):
             bot.send_message(chat_id, "❌ Не удалось скачать медиа. Возможно, формат недоступен.")
 
 if __name__ == '__main__':
-    keep_alive()  # Включаем Flask-сервер для удержания портов Render
-    print("Бот успешно запущен и охраняет ка
+    print("Бот успешно запущен и охраняет канал Ismoil Lab!")
+    bot.infinity_polling()
